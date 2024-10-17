@@ -118,6 +118,8 @@ type Peer struct {
 	// events receives message send / receive events if set
 	events   *event.Feed
 	testPipe *MsgPipeRW // for testing
+
+	latency time.Duration
 }
 
 // NewPeer returns a peer for testing purposes.
@@ -292,9 +294,11 @@ func (p *Peer) pingLoop() {
 	ping := time.NewTimer(pingInterval)
 	defer ping.Stop()
 
+	start := time.Now()
 	for {
 		select {
 		case <-ping.C:
+			start = time.Now()
 			if err := SendItems(p.rw, pingMsg); err != nil {
 				p.protoErr <- err
 				return
@@ -303,6 +307,7 @@ func (p *Peer) pingLoop() {
 
 		case <-p.pingRecv:
 			SendItems(p.rw, pongMsg)
+			p.latency = time.Since(start)
 
 		case <-p.closed:
 			return
@@ -498,6 +503,7 @@ type PeerInfo struct {
 		Static        bool   `json:"static"`
 	} `json:"network"`
 	Protocols map[string]interface{} `json:"protocols"` // Sub-protocol specific metadata fields
+	Latency   int64                  `json:"latency"`
 }
 
 // Info gathers and returns a collection of metadata known about a peer.
@@ -523,6 +529,7 @@ func (p *Peer) Info() *PeerInfo {
 	info.Network.Inbound = p.rw.is(inboundConn)
 	info.Network.Trusted = p.rw.is(trustedConn)
 	info.Network.Static = p.rw.is(staticDialedConn)
+	info.Latency = p.latency.Milliseconds()
 
 	// Gather all the running protocol infos
 	for _, proto := range p.running {

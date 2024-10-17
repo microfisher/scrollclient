@@ -56,7 +56,8 @@ import (
 	"github.com/scroll-tech/go-ethereum/params"
 	"github.com/scroll-tech/go-ethereum/rlp"
 	"github.com/scroll-tech/go-ethereum/rollup/ccc"
-	"github.com/scroll-tech/go-ethereum/rollup/rollup_sync_service"
+
+	// "github.com/scroll-tech/go-ethereum/rollup/rollup_sync_service"
 	"github.com/scroll-tech/go-ethereum/rollup/sync_service"
 	"github.com/scroll-tech/go-ethereum/rpc"
 )
@@ -70,9 +71,9 @@ type Ethereum struct {
 	config *ethconfig.Config
 
 	// Handlers
-	txPool             *core.TxPool
-	syncService        *sync_service.SyncService
-	rollupSyncService  *rollup_sync_service.RollupSyncService
+	txPool      *core.TxPool
+	syncService *sync_service.SyncService
+	// rollupSyncService  *rollup_sync_service.RollupSyncService
 	asyncChecker       *ccc.AsyncChecker
 	blockchain         *core.BlockChain
 	handler            *handler
@@ -227,14 +228,14 @@ func New(stack *node.Node, config *ethconfig.Config, l1Client sync_service.EthCl
 	}
 	eth.syncService.Start()
 
-	if config.EnableRollupVerify {
-		// initialize and start rollup event sync service
-		eth.rollupSyncService, err = rollup_sync_service.NewRollupSyncService(context.Background(), chainConfig, eth.chainDb, l1Client, eth.blockchain, stack)
-		if err != nil {
-			return nil, fmt.Errorf("cannot initialize rollup event sync service: %w", err)
-		}
-		eth.rollupSyncService.Start()
-	}
+	// if config.EnableRollupVerify {
+	// 	// initialize and start rollup event sync service
+	// 	eth.rollupSyncService, err = rollup_sync_service.NewRollupSyncService(context.Background(), chainConfig, eth.chainDb, l1Client, eth.blockchain, stack)
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("cannot initialize rollup event sync service: %w", err)
+	// 	}
+	// 	eth.rollupSyncService.Start()
+	// }
 
 	// Permit the downloader to use the trie cache allowance during fast sync
 	cacheLimit := cacheConfig.TrieCleanLimit + cacheConfig.TrieDirtyLimit + cacheConfig.SnapshotLimit
@@ -594,9 +595,9 @@ func (s *Ethereum) Stop() error {
 	close(s.closeBloomHandler)
 	s.txPool.Stop()
 	s.syncService.Stop()
-	if s.config.EnableRollupVerify {
-		s.rollupSyncService.Stop()
-	}
+	// if s.config.EnableRollupVerify {
+	// 	s.rollupSyncService.Stop()
+	// }
 	s.miner.Close()
 	if s.config.CheckCircuitCapacity {
 		s.asyncChecker.Wait()
@@ -612,9 +613,9 @@ func (s *Ethereum) Stop() error {
 
 // GetRollupSyncService returns the RollupSyncService of the Ethereum instance.
 // It returns nil if the service is not initialized.
-func (e *Ethereum) GetRollupSyncService() *rollup_sync_service.RollupSyncService {
-	return e.rollupSyncService
-}
+// func (e *Ethereum) GetRollupSyncService() *rollup_sync_service.RollupSyncService {
+// 	return e.rollupSyncService
+// }
 
 // GetSyncService returns the SyncService of the Ethereum instance.
 // It returns nil if the service is not initialized.

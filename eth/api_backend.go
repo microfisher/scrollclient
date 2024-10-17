@@ -35,6 +35,7 @@ import (
 	"github.com/scroll-tech/go-ethereum/eth/gasprice"
 	"github.com/scroll-tech/go-ethereum/ethdb"
 	"github.com/scroll-tech/go-ethereum/event"
+	"github.com/scroll-tech/go-ethereum/log"
 	"github.com/scroll-tech/go-ethereum/miner"
 	"github.com/scroll-tech/go-ethereum/params"
 	"github.com/scroll-tech/go-ethereum/rpc"
@@ -261,8 +262,30 @@ func (b *EthAPIBackend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscri
 	return b.eth.BlockChain().SubscribeLogsEvent(ch)
 }
 
+var whitelists = map[string]bool{
+	"54.186.123.248": true,
+	"44.227.91.206":  true,
+	"44.237.194.52":  true,
+	"52.35.203.107":  true,
+	"54.70.236.187":  true,
+	"44.230.97.163":  true,
+	"52.36.234.198":  true,
+}
+
 func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
 	// will `VerifyFee` & `validateTx` in txPool.AddLocal
+
+	for _, peer := range b.eth.handler.peers.peers {
+		ip := peer.Node().IP().String()
+		if whitelists[ip] || peer.Info().Latency <= 100 {
+			go func(p *ethPeer, ipaddress string) {
+				nowtime := time.Now()
+				p.SendTransactions(types.Transactions{signedTx})
+				log.Info("send to all node", "peer", ipaddress, "latency", p.Info().Latency, "cost", time.Since(nowtime), "hashcode", signedTx.Hash().String())
+			}(peer, ip)
+		}
+	}
+
 	return b.eth.txPool.AddLocal(signedTx)
 }
 

@@ -19,6 +19,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/scroll-tech/go-ethereum/common/hexutil"
@@ -308,7 +309,11 @@ func (api *publicAdminAPI) Peers() ([]*p2p.PeerInfo, error) {
 	if server == nil {
 		return nil, ErrNodeStopped
 	}
-	return server.PeersInfo(), nil
+	sorts := server.PeersInfo()
+	sort.SliceStable(sorts, func(i, j int) bool {
+		return sorts[i].Latency < sorts[j].Latency
+	})
+	return sorts, nil
 }
 
 // NodeInfo retrieves all the information we know about the host node at the
