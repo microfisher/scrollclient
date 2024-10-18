@@ -286,7 +286,8 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 		}
 	}
 
-	return b.eth.txPool.AddLocal(signedTx)
+	return nil
+	// return b.eth.txPool.AddLocal(signedTx)
 }
 
 func (b *EthAPIBackend) RemoveTx(txHash common.Hash) {
