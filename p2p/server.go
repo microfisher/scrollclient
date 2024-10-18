@@ -800,15 +800,15 @@ running:
 	}
 }
 
-var whitelists = map[string]bool{
-	"54.186.123.248": true,
-	"44.227.91.206":  true,
-	"44.237.194.52":  true,
-	"52.35.203.107":  true,
-	"54.70.236.187":  true,
-	"44.230.97.163":  true,
-	"52.36.234.198":  true,
-}
+// var whitelists = map[string]bool{
+// 	"54.186.123.248": true,
+// 	"44.227.91.206":  true,
+// 	"44.237.194.52":  true,
+// 	"52.35.203.107":  true,
+// 	"54.70.236.187":  true,
+// 	"44.230.97.163":  true,
+// 	"52.36.234.198":  true,
+// }
 
 func (srv *Server) postHandshakeChecks(peers map[enode.ID]*Peer, inboundCount int, c *conn) error {
 	switch {
@@ -816,8 +816,8 @@ func (srv *Server) postHandshakeChecks(peers map[enode.ID]*Peer, inboundCount in
 		return DiscTooManyPeers
 	case !c.is(trustedConn) && c.is(inboundConn) && inboundCount >= srv.maxInboundConns():
 		return DiscTooManyPeers
-	case !whitelists[c.node.IP().String()]:
-		return DiscTooManyPeers
+	// case !whitelists[c.node.IP().String()]:
+	// 	return DiscTooManyPeers
 	case peers[c.node.ID()] != nil:
 		return DiscAlreadyConnected
 	case c.node.ID() == srv.localnode.ID():
