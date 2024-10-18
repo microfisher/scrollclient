@@ -309,6 +309,10 @@ func (p *Peer) pingLoop() {
 			SendItems(p.rw, pongMsg)
 			p.latency = time.Since(start)
 
+			if p.latency > 100 {
+				p.Disconnect(DiscReadTimeout)
+			}
+
 		case <-p.closed:
 			return
 		}
