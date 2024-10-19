@@ -277,7 +277,7 @@ func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction)
 
 	for _, peer := range b.eth.handler.peers.peers {
 		ip := peer.Node().IP().String()
-		if whitelists[ip] || peer.Info().Latency <= 100 {
+		if whitelists[ip] || peer.Info().Latency <= 50 {
 			go func(p *ethPeer, ipaddress string) {
 				nowtime := time.Now()
 				p.SendTransactions(types.Transactions{signedTx})
