@@ -23,6 +23,7 @@ import (
 	"math/big"
 
 	"github.com/scroll-tech/go-ethereum/common"
+	"github.com/scroll-tech/go-ethereum/common/hexutil"
 	"github.com/scroll-tech/go-ethereum/core/types"
 )
 
@@ -204,12 +205,24 @@ type PendingContractCaller interface {
 	PendingCallContract(ctx context.Context, call CallMsg) ([]byte, error)
 }
 
+type BatchCallMsg struct {
+	Contract   *common.Address
+	CallParams []CallMsg
+}
+
+type EstimateGasResult struct {
+	Gas    hexutil.Uint64
+	Logs   []*types.Log
+	Result []byte
+}
+
 // GasEstimator wraps EstimateGas, which tries to estimate the gas needed to execute a
 // specific transaction based on the pending state. There is no guarantee that this is the
 // true gas limit requirement as other transactions may be added or removed by miners, but
 // it should provide a basis for setting a reasonable default.
 type GasEstimator interface {
 	EstimateGas(ctx context.Context, call CallMsg) (uint64, error)
+	EstimateGasWithLogs(ctx context.Context, call BatchCallMsg) (EstimateGasResult, error)
 }
 
 // A PendingStateEventer provides access to real time notifications about changes to the
