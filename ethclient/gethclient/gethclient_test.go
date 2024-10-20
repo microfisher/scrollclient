@@ -273,7 +273,7 @@ func testSubscribePendingTransactions(t *testing.T, client *rpc.Client) {
 	ec := New(client)
 	ethcl := ethclient.NewClient(client)
 	// Subscribe to Transactions
-	ch := make(chan common.Hash)
+	ch := make(chan *types.Transaction)
 	ec.SubscribePendingTransactions(context.Background(), ch)
 	// Send a transaction
 	chainID, err := ethcl.ChainID(context.Background())
@@ -298,7 +298,7 @@ func testSubscribePendingTransactions(t *testing.T, client *rpc.Client) {
 	}
 	// Check that the transaction was send over the channel
 	hash := <-ch
-	if hash != signedTx.Hash() {
+	if hash != signedTx {
 		t.Fatalf("Invalid tx hash received, got %v, want %v", hash, signedTx.Hash())
 	}
 }

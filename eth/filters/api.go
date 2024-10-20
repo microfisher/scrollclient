@@ -31,18 +31,20 @@ import (
 	"github.com/scroll-tech/go-ethereum/core/types"
 	"github.com/scroll-tech/go-ethereum/ethdb"
 	"github.com/scroll-tech/go-ethereum/event"
+	"github.com/scroll-tech/go-ethereum/internal/ethapi"
 	"github.com/scroll-tech/go-ethereum/rpc"
 )
 
 // filter is a helper struct that holds meta information over the filter type
 // and associated subscription in the event system.
 type filter struct {
-	typ      Type
-	deadline *time.Timer // filter is inactiv when deadline triggers
-	hashes   []common.Hash
-	crit     FilterCriteria
-	logs     []*types.Log
-	s        *Subscription // associated subscription in event system
+	typ          Type
+	deadline     *time.Timer // filter is inactiv when deadline triggers
+	hashes       []common.Hash
+	transactions []*types.Transaction
+	crit         FilterCriteria
+	logs         []*types.Log
+	s            *Subscription // associated subscription in event system
 }
 
 // PublicFilterAPI offers support to create and manage filters. This will allow external clients to retrieve various
@@ -113,12 +115,17 @@ func (api *PublicFilterAPI) timeoutLoop(timeout time.Duration) {
 // https://eth.wiki/json-rpc/API#eth_newpendingtransactionfilter
 func (api *PublicFilterAPI) NewPendingTransactionFilter() rpc.ID {
 	var (
-		pendingTxs   = make(chan []common.Hash)
+		pendingTxs   = make(chan []*types.Transaction)
 		pendingTxSub = api.events.SubscribePendingTxs(pendingTxs)
 	)
 
 	api.filtersMu.Lock()
-	api.filters[pendingTxSub.ID] = &filter{typ: PendingTransactionsSubscription, deadline: time.NewTimer(api.timeout), hashes: make([]common.Hash, 0), s: pendingTxSub}
+	api.filters[pendingTxSub.ID] = &filter{
+		typ:          PendingTransactionsSubscription,
+		deadline:     time.NewTimer(api.timeout),
+		transactions: make([]*types.Transaction, 0),
+		s:            pendingTxSub,
+	}
 	api.filtersMu.Unlock()
 
 	go func() {
@@ -127,7 +134,7 @@ func (api *PublicFilterAPI) NewPendingTransactionFilter() rpc.ID {
 			case ph := <-pendingTxs:
 				api.filtersMu.Lock()
 				if f, found := api.filters[pendingTxSub.ID]; found {
-					f.hashes = append(f.hashes, ph...)
+					f.transactions = append(f.transactions, ph...)
 				}
 				api.filtersMu.Unlock()
 			case <-pendingTxSub.Err():
@@ -153,16 +160,16 @@ func (api *PublicFilterAPI) NewPendingTransactions(ctx context.Context) (*rpc.Su
 	rpcSub := notifier.CreateSubscription()
 
 	go func() {
-		txHashes := make(chan []common.Hash, 128)
-		pendingTxSub := api.events.SubscribePendingTxs(txHashes)
+		txs := make(chan []*types.Transaction, 512)
+		pendingTxSub := api.events.SubscribePendingTxs(txs)
+		chainConfig := api.backend.ChainConfig()
 
 		for {
 			select {
-			case hashes := <-txHashes:
-				// To keep the original behaviour, send a single tx hash in one notification.
-				// TODO(rjl493456442) Send a batch of tx hashes in one notification
-				for _, h := range hashes {
-					notifier.Notify(rpcSub.ID, h)
+			case txs := <-txs:
+				latest := api.backend.CurrentHeader()
+				for _, tx := range txs {
+					notifier.Notify(rpcSub.ID, NewRPCPendingTransaction(tx, latest, chainConfig))
 				}
 			case <-rpcSub.Err():
 				pendingTxSub.Unsubscribe()
@@ -424,6 +431,9 @@ func (api *PublicFilterAPI) GetFilterChanges(id rpc.ID) (interface{}, error) {
 	api.filtersMu.Lock()
 	defer api.filtersMu.Unlock()
 
+	chainConfig := api.backend.ChainConfig()
+	latest := api.backend.CurrentHeader()
+
 	if f, found := api.filters[id]; found {
 		if !f.deadline.Stop() {
 			// timer expired but filter is not yet removed in timeout loop
@@ -433,10 +443,17 @@ func (api *PublicFilterAPI) GetFilterChanges(id rpc.ID) (interface{}, error) {
 		f.deadline.Reset(api.timeout)
 
 		switch f.typ {
-		case PendingTransactionsSubscription, BlocksSubscription:
+		case BlocksSubscription:
 			hashes := f.hashes
 			f.hashes = nil
 			return returnHashes(hashes), nil
+		case PendingTransactionsSubscription:
+			transactions := make([]*ethapi.RPCTransaction, 0, len(f.transactions))
+			for _, tx := range f.transactions {
+				transactions = append(transactions, NewRPCPendingTransaction(tx, latest, chainConfig))
+			}
+			f.transactions = nil
+			return transactions, nil
 		case LogsSubscription, MinedAndPendingLogsSubscription:
 			logs := f.logs
 			f.logs = nil

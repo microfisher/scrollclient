@@ -181,7 +181,7 @@ func (ec *Client) GetNodeInfo(ctx context.Context) (*p2p.NodeInfo, error) {
 }
 
 // SubscribePendingTransactions subscribes to new pending transactions.
-func (ec *Client) SubscribePendingTransactions(ctx context.Context, ch chan<- common.Hash) (*rpc.ClientSubscription, error) {
+func (ec *Client) SubscribePendingTransactions(ctx context.Context, ch chan<- *types.Transaction) (*rpc.ClientSubscription, error) {
 	return ec.c.EthSubscribe(ctx, ch, "newPendingTransactions")
 }
 

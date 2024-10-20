@@ -69,15 +69,15 @@ const (
 )
 
 type subscription struct {
-	id        rpc.ID
-	typ       Type
-	created   time.Time
-	logsCrit  ethereum.FilterQuery
-	logs      chan []*types.Log
-	hashes    chan []common.Hash
-	headers   chan *types.Header
-	installed chan struct{} // closed when the filter is installed
-	err       chan error    // closed when the filter is uninstalled
+	id           rpc.ID
+	typ          Type
+	created      time.Time
+	logsCrit     ethereum.FilterQuery
+	logs         chan []*types.Log
+	transactions chan []*types.Transaction
+	headers      chan *types.Header
+	installed    chan struct{} // closed when the filter is installed
+	err          chan error    // closed when the filter is uninstalled
 }
 
 // EventSystem creates subscriptions, processes events and broadcasts them to the
@@ -165,7 +165,7 @@ func (sub *Subscription) Unsubscribe() {
 			case sub.es.uninstall <- sub.f:
 				break uninstallLoop
 			case <-sub.f.logs:
-			case <-sub.f.hashes:
+			case <-sub.f.transactions:
 			case <-sub.f.headers:
 			}
 		}
@@ -227,15 +227,15 @@ func (es *EventSystem) SubscribeLogs(crit ethereum.FilterQuery, logs chan []*typ
 // pending logs that match the given criteria.
 func (es *EventSystem) subscribeMinedPendingLogs(crit ethereum.FilterQuery, logs chan []*types.Log) *Subscription {
 	sub := &subscription{
-		id:        rpc.NewID(),
-		typ:       MinedAndPendingLogsSubscription,
-		logsCrit:  crit,
-		created:   time.Now(),
-		logs:      logs,
-		hashes:    make(chan []common.Hash),
-		headers:   make(chan *types.Header),
-		installed: make(chan struct{}),
-		err:       make(chan error),
+		id:           rpc.NewID(),
+		typ:          MinedAndPendingLogsSubscription,
+		logsCrit:     crit,
+		created:      time.Now(),
+		logs:         logs,
+		transactions: make(chan []*types.Transaction),
+		headers:      make(chan *types.Header),
+		installed:    make(chan struct{}),
+		err:          make(chan error),
 	}
 	return es.subscribe(sub)
 }
@@ -244,15 +244,15 @@ func (es *EventSystem) subscribeMinedPendingLogs(crit ethereum.FilterQuery, logs
 // given criteria to the given logs channel.
 func (es *EventSystem) subscribeLogs(crit ethereum.FilterQuery, logs chan []*types.Log) *Subscription {
 	sub := &subscription{
-		id:        rpc.NewID(),
-		typ:       LogsSubscription,
-		logsCrit:  crit,
-		created:   time.Now(),
-		logs:      logs,
-		hashes:    make(chan []common.Hash),
-		headers:   make(chan *types.Header),
-		installed: make(chan struct{}),
-		err:       make(chan error),
+		id:           rpc.NewID(),
+		typ:          LogsSubscription,
+		logsCrit:     crit,
+		created:      time.Now(),
+		logs:         logs,
+		transactions: make(chan []*types.Transaction),
+		headers:      make(chan *types.Header),
+		installed:    make(chan struct{}),
+		err:          make(chan error),
 	}
 	return es.subscribe(sub)
 }
@@ -261,15 +261,15 @@ func (es *EventSystem) subscribeLogs(crit ethereum.FilterQuery, logs chan []*typ
 // transactions that enter the transaction pool.
 func (es *EventSystem) subscribePendingLogs(crit ethereum.FilterQuery, logs chan []*types.Log) *Subscription {
 	sub := &subscription{
-		id:        rpc.NewID(),
-		typ:       PendingLogsSubscription,
-		logsCrit:  crit,
-		created:   time.Now(),
-		logs:      logs,
-		hashes:    make(chan []common.Hash),
-		headers:   make(chan *types.Header),
-		installed: make(chan struct{}),
-		err:       make(chan error),
+		id:           rpc.NewID(),
+		typ:          PendingLogsSubscription,
+		logsCrit:     crit,
+		created:      time.Now(),
+		logs:         logs,
+		transactions: make(chan []*types.Transaction),
+		headers:      make(chan *types.Header),
+		installed:    make(chan struct{}),
+		err:          make(chan error),
 	}
 	return es.subscribe(sub)
 }
@@ -278,30 +278,30 @@ func (es *EventSystem) subscribePendingLogs(crit ethereum.FilterQuery, logs chan
 // imported in the chain.
 func (es *EventSystem) SubscribeNewHeads(headers chan *types.Header) *Subscription {
 	sub := &subscription{
-		id:        rpc.NewID(),
-		typ:       BlocksSubscription,
-		created:   time.Now(),
-		logs:      make(chan []*types.Log),
-		hashes:    make(chan []common.Hash),
-		headers:   headers,
-		installed: make(chan struct{}),
-		err:       make(chan error),
+		id:           rpc.NewID(),
+		typ:          BlocksSubscription,
+		created:      time.Now(),
+		logs:         make(chan []*types.Log),
+		transactions: make(chan []*types.Transaction),
+		headers:      headers,
+		installed:    make(chan struct{}),
+		err:          make(chan error),
 	}
 	return es.subscribe(sub)
 }
 
 // SubscribePendingTxs creates a subscription that writes transaction hashes for
 // transactions that enter the transaction pool.
-func (es *EventSystem) SubscribePendingTxs(hashes chan []common.Hash) *Subscription {
+func (es *EventSystem) SubscribePendingTxs(transactions chan []*types.Transaction) *Subscription {
 	sub := &subscription{
-		id:        rpc.NewID(),
-		typ:       PendingTransactionsSubscription,
-		created:   time.Now(),
-		logs:      make(chan []*types.Log),
-		hashes:    hashes,
-		headers:   make(chan *types.Header),
-		installed: make(chan struct{}),
-		err:       make(chan error),
+		id:           rpc.NewID(),
+		typ:          PendingTransactionsSubscription,
+		created:      time.Now(),
+		logs:         make(chan []*types.Log),
+		transactions: transactions,
+		headers:      make(chan *types.Header),
+		installed:    make(chan struct{}),
+		err:          make(chan error),
 	}
 	return es.subscribe(sub)
 }
@@ -342,12 +342,8 @@ func (es *EventSystem) handleRemovedLogs(filters filterIndex, ev core.RemovedLog
 }
 
 func (es *EventSystem) handleTxsEvent(filters filterIndex, ev core.NewTxsEvent) {
-	hashes := make([]common.Hash, 0, len(ev.Txs))
-	for _, tx := range ev.Txs {
-		hashes = append(hashes, tx.Hash())
-	}
 	for _, f := range filters[PendingTransactionsSubscription] {
-		f.hashes <- hashes
+		f.transactions <- ev.Txs
 	}
 }
 

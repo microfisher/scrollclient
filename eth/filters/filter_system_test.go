@@ -774,3 +774,12 @@ func flattenLogs(pl [][]*types.Log) []*types.Log {
 	}
 	return logs
 }
+
+func (b *testBackend) CurrentHeader() *types.Header {
+	hdr, _ := b.HeaderByNumber(context.TODO(), rpc.LatestBlockNumber)
+	return hdr
+}
+
+func (b *testBackend) ChainConfig() *params.ChainConfig {
+	return params.TestChainConfig
+}
